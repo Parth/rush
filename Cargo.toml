@@ -6,3 +6,4 @@ license = "Unlicense"
 description = "the rust shell"
 
 [dependencies]
+crossterm = "0.27.0"
