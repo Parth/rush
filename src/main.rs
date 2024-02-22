@@ -1,6 +1,8 @@
 use rush::Rush;
 
-mod errors;
+mod cursor;
+mod error;
+mod event;
 mod parser;
 mod prompt;
 mod rush;

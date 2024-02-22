@@ -4,13 +4,13 @@ use std::{
 };
 
 use crossterm::{
-    cursor::MoveToColumn,
+    cursor::{self, MoveToColumn},
     style::{self, Attribute, Attributes, ContentStyle, ResetColor, SetForegroundColor, SetStyle},
     terminal::{self, Clear},
     QueueableCommand,
 };
 
-use crate::{errors::Res, rush::Rush};
+use crate::{error::Res, rush::Rush};
 
 impl Rush {
     pub fn shortened_home(&self) -> Option<PathBuf> {
@@ -49,7 +49,7 @@ impl Rush {
         Ok(())
     }
 
-    fn show_input(&self) -> Res<()> {
+    fn show_input(&mut self) -> Res<()> {
         stdout().queue(SetStyle(ContentStyle {
             foreground_color: None,
             background_color: None,
@@ -58,16 +58,27 @@ impl Rush {
         }))?;
         write!(stdout(), " > ")?;
         stdout().queue(ResetColor)?;
-        write!(stdout(), "{}", self.prompt)?;
+
+        if let None = self.cursor.min_cursor {
+            stdout().flush()?;
+            self.cursor.min_cursor = Some(cursor::position()?.0);
+            self.cursor.max_cursor = self.cursor.min_cursor;
+        }
+
+        write!(stdout(), "{}", self.input)?;
+
+        if let None = self.cursor.cursor_location {
+            stdout().flush()?;
+            self.cursor.cursor_location = Some(cursor::position()?.0);
+        }
         Ok(())
     }
 
-    pub fn show(&self) -> Res<()> {
+    pub fn show(&mut self) -> Res<()> {
         stdout().queue(Clear(terminal::ClearType::CurrentLine))?;
         stdout().queue(MoveToColumn(0))?;
         self.show_pwd()?;
         self.show_input()?;
-        stdout().flush()?;
         Ok(())
     }
 }
