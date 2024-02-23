@@ -81,4 +81,28 @@ impl Rush {
         self.show_input()?;
         Ok(())
     }
+
+    pub fn append_input(&mut self, c: char) -> Res<()> {
+        let current_index = self.cursor.cursor_location.unwrap() - self.cursor.min_cursor.unwrap();
+        let current_index = current_index as usize;
+
+        self.input.insert(current_index, c);
+        self.cursor_move_right(true);
+
+        Ok(())
+    }
+
+    pub fn backspace(&mut self) -> Res<()> {
+        if self.input.is_empty() {
+            return Ok(()); // todo: boop here
+        }
+
+        let current_index = self.cursor.cursor_location.unwrap() - self.cursor.min_cursor.unwrap();
+        let current_index = current_index as usize;
+
+        self.input
+            .replace_range(current_index - 1..current_index, "");
+        self.cursor_move_left(true);
+        Ok(())
+    }
 }

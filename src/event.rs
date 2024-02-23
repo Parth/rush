@@ -47,14 +47,10 @@ impl Rush {
                         self.cursor_move_left(false);
                     }
                     KeyCode::Right => {
-                        self.cursor_move_right();
+                        self.cursor_move_right(false);
                     }
-                    KeyCode::Char(c) => {
-                        self.input = format!("{}{c}", self.input);
-                        self.calc_input_size();
-                        self.cursor_move_right();
-                    }
-                    KeyCode::Backspace => {}
+                    KeyCode::Char(c) => self.append_input(c)?,
+                    KeyCode::Backspace => self.backspace()?,
                     KeyCode::Enter => self.execute()?,
                     _ => break,
                 },
