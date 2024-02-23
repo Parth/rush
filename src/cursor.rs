@@ -24,12 +24,20 @@ impl Rush {
         }
     }
 
-    pub fn cursor_move_right(&mut self, expand_bounds: bool) {
-        let max = self.cursor.max_cursor.as_mut().unwrap();
-        if expand_bounds {
-            *max += 1;
-        }
+    pub fn calc_input_size(&mut self) {
+        let input_symbols = self.input.chars().count() as u16;
+        self.cursor.max_cursor = Some(self.cursor.min_cursor.unwrap() + input_symbols);
+    }
 
+    // when we want to support emojis we'll need to do the following:
+    // we need to calculate what the next column we're about to move to is
+    // despite a monospaced environment there are characters that are multiple columns wide 🎉
+    // we can use UnicodeWidth to determine which characters behave this way.
+    // we can use grapheme indexes to iterate through the string. I thought about doing this now
+    // but for whom is emoji a higher priority than history and other such things? I'd like to
+    // meet such a person.
+    pub fn cursor_move_right(&mut self) {
+        let max = self.cursor.max_cursor.as_mut().unwrap();
         let loc = self.cursor.cursor_location.as_mut().unwrap();
         if loc < max {
             *loc += 1;
