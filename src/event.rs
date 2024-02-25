@@ -51,11 +51,10 @@ impl Rush {
                     }
                     KeyCode::Char(c) => self.append_input(c)?,
                     KeyCode::Backspace => self.backspace()?,
-                    KeyCode::Enter => self.execute()?,
+                    KeyCode::Enter => self.parse(true)?,
                     _ => break,
                 },
-                event::Event::Mouse(_) => break,
-                _ => continue,
+                _ => break,
             }
 
             self.show()?;
