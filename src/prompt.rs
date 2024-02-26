@@ -59,7 +59,7 @@ impl Rush {
         write!(stdout(), " > ")?;
         stdout().queue(ResetColor)?;
 
-        if let None = self.cursor.min_cursor {
+        if self.cursor.min_cursor.is_none() {
             stdout().flush()?;
             self.cursor.min_cursor = Some(cursor::position()?.0);
             self.cursor.max_cursor = self.cursor.min_cursor;
@@ -67,7 +67,7 @@ impl Rush {
 
         write!(stdout(), "{}", self.input)?;
 
-        if let None = self.cursor.cursor_location {
+        if self.cursor.cursor_location.is_none() {
             stdout().flush()?;
             self.cursor.cursor_location = Some(cursor::position()?.0);
         }

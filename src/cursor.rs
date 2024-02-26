@@ -49,3 +49,11 @@ impl Rush {
         Ok(())
     }
 }
+
+impl Cursor {
+    pub fn clear(&mut self) {
+        self.min_cursor = None;
+        self.cursor_location = None;
+        self.max_cursor = None;
+    }
+}
