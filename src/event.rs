@@ -1,12 +1,11 @@
 use std::io::{stdout, Write};
 
 use crossterm::{
-    cursor::{position, MoveToNextLine},
     event::{
         self, DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
-        EnableFocusChange, EnableMouseCapture, KeyCode, KeyEvent, KeyEventKind,
+        EnableFocusChange, EnableMouseCapture, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
     },
-    terminal::{self, window_size, ScrollUp},
+    terminal::{self},
     QueueableCommand,
 };
 
@@ -41,7 +40,7 @@ impl Rush {
             match event::read()? {
                 event::Event::Key(KeyEvent {
                     code,
-                    modifiers: _,
+                    modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
                     kind: KeyEventKind::Press,
                     state: _,
                 }) => match code {
@@ -54,24 +53,20 @@ impl Rush {
                     KeyCode::Char(c) => self.append_input(c)?,
                     KeyCode::Backspace => self.backspace()?,
                     KeyCode::Enter => self.parse(true)?,
-                    _ => break,
+                    _ => continue,
                 },
-                _ => break,
-            }
-
-            if self.execute {
-                stdout().queue(MoveToNextLine(1))?;
-                if position()?.1 == window_size()?.rows - 1 {
-                    stdout().queue(ScrollUp(1))?;
-                }
-                self.execute = false;
+                event::Event::Key(KeyEvent {
+                    code,
+                    modifiers,
+                    kind: KeyEventKind::Press,
+                    state: _,
+                }) => self.shortcut(code, modifiers)?,
+                _ => continue,
             }
 
             self.show()?;
             self.cursor_show()?;
             stdout().flush()?;
         }
-
-        Ok(())
     }
 }

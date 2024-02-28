@@ -4,15 +4,29 @@ use std::{
 };
 
 use crossterm::{
-    cursor::{self, MoveToColumn},
+    cursor::{self, position, MoveToColumn, MoveToNextLine},
     style::{self, Attribute, Attributes, ContentStyle, ResetColor, SetForegroundColor, SetStyle},
-    terminal::{self, Clear},
+    terminal::{self, window_size, Clear, ScrollUp},
     QueueableCommand,
 };
 
 use crate::{error::Res, rush::Rush};
 
 impl Rush {
+    pub fn next_line() -> Res<()> {
+        stdout().queue(MoveToNextLine(1))?;
+        if position()?.1 == window_size()?.rows - 1 {
+            stdout().queue(ScrollUp(1))?;
+        }
+        stdout().flush()?;
+        Ok(())
+    }
+
+    pub fn reset_prompt(&mut self) {
+        self.input.clear();
+        self.cursor.clear();
+    }
+
     pub fn shortened_home(&self) -> Option<PathBuf> {
         let mut trim_home = true;
         let mut pwd = self.pwd.iter();

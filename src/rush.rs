@@ -7,7 +7,7 @@ pub struct Rush {
     pub pwd: PathBuf,
     pub home: PathBuf,
     pub input: String,
-    pub execute: bool,
+    pub exit: bool,
 }
 
 impl Rush {
@@ -24,7 +24,7 @@ impl Rush {
             pwd,
             home,
             input: String::new(),
-            execute: false,
+            exit: false,
         }
     }
 }
