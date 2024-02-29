@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsStr,
     path::{Path, PathBuf},
     process::{self, Command},
 };
@@ -21,10 +22,13 @@ impl Rush {
             Self::next_line()?;
         }
 
-        let mut tokens = self.input.split(' ');
+        // todo: we used iters prior to shell_words but now this is probably costing us flexibility
+        // for no performance increase
+        let tokens = shell_words::split(&self.input)?;
+        let mut tokens = tokens.iter();
 
         if let Some(command) = tokens.next() {
-            match command {
+            match command.as_ref() {
                 "" => {}
                 "cd" => Self::cd(tokens, &mut self.pwd, &self.home)?,
                 "exit" => Self::exit(),
@@ -47,9 +51,10 @@ impl Rush {
         process::exit(0);
     }
 
-    fn cd<'a, T>(tokens: T, pwd: &mut PathBuf, home: &Path) -> Res<()>
+    fn cd<P, T>(tokens: T, pwd: &mut PathBuf, home: &Path) -> Res<()>
     where
-        T: IntoIterator<Item = &'a str>,
+        T: IntoIterator<Item = P>,
+        P: AsRef<Path>,
     {
         match tokens.into_iter().next() {
             None => *pwd = home.to_path_buf(),
@@ -63,9 +68,10 @@ impl Rush {
         Ok(())
     }
 
-    fn command<'a, T>(c: &str, tokens: T, pwd: &Path) -> Res<()>
+    fn command<P, T>(c: &str, tokens: T, pwd: &Path) -> Res<()>
     where
-        T: IntoIterator<Item = &'a str>,
+        T: IntoIterator<Item = P>,
+        P: AsRef<OsStr>,
     {
         terminal::disable_raw_mode()?;
 

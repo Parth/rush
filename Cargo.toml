@@ -1,6 +1,6 @@
 [package]
 name = "rush"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2021"
 license = "Unlicense"
 description = "the rust shell"
@@ -8,3 +8,4 @@ repository = "https://github.com/parth/rush"
 
 [dependencies]
 crossterm = "0.27.0"
+shell-words = "1.1.0"
