@@ -8,9 +8,16 @@ use crossterm::terminal::{self};
 
 use crate::{error::Res, rush::Rush};
 
+#[derive(Default)]
+pub struct ParserState {
+    pub execute: bool,
+    pub input: String,
+    // todo: these next two fields will likely become some sort of execution plan
+    pub word_idx: usize,
+    pub shell_words: Vec<String>,
+}
+
 impl Rush {
-    // todo: shell built ins
-    // todo: single commands
     // todo: env vars
     // todo: *
     // todo: &&'s
@@ -18,29 +25,30 @@ impl Rush {
     // todo: ( )
     // execute is a flag because the parser will also syntax highlight
     pub fn parse(&mut self, execute: bool) -> Res<()> {
-        if execute {
+        self.parser.execute = execute;
+        if self.parser.execute {
             Self::next_line()?;
         }
 
         // todo: we used iters prior to shell_words but now this is probably costing us flexibility
         // for no performance increase
-        let tokens = shell_words::split(&self.input)?;
-        let mut tokens = tokens.iter();
+        self.parser.shell_words = shell_words::split(&self.parser.input)?;
 
-        if let Some(command) = tokens.next() {
+        self.parser.word_idx = 0;
+        if let Some(command) = self.parser.shell_words.get(self.parser.word_idx) {
             match command.as_ref() {
-                "" => {}
-                "cd" => Self::cd(tokens, &mut self.pwd, &self.home)?,
+                "" => {} // needed?
+                "cd" => self.cd()?,
                 "exit" => Self::exit(),
                 c => {
-                    if execute {
-                        Self::command(c, tokens, &self.pwd)?
+                    if self.parser.execute {
+                        self.command()?;
                     }
                 }
             }
         }
 
-        if execute {
+        if self.parser.execute {
             self.reset_prompt();
         }
 
@@ -51,16 +59,13 @@ impl Rush {
         process::exit(0);
     }
 
-    fn cd<P, T>(tokens: T, pwd: &mut PathBuf, home: &Path) -> Res<()>
-    where
-        T: IntoIterator<Item = P>,
-        P: AsRef<Path>,
-    {
-        match tokens.into_iter().next() {
-            None => *pwd = home.to_path_buf(),
+    fn cd(&mut self) -> Res<()> {
+        self.parser.word_idx += 1;
+        match self.parser.shell_words.get(self.parser.word_idx) {
+            None => self.pwd = self.home.to_path_buf(),
             Some(other) => {
-                pwd.push(other);
-                *pwd = pwd.canonicalize()?;
+                self.pwd.push(other);
+                self.pwd = self.pwd.canonicalize()?;
                 // need to think through error propogation here
             }
         }
@@ -68,16 +73,14 @@ impl Rush {
         Ok(())
     }
 
-    fn command<P, T>(c: &str, tokens: T, pwd: &Path) -> Res<()>
-    where
-        T: IntoIterator<Item = P>,
-        P: AsRef<OsStr>,
-    {
+    fn command(&mut self) -> Res<()> {
         terminal::disable_raw_mode()?;
 
+        let c = &self.parser.shell_words[self.parser.word_idx];
+        self.parser.word_idx += 1;
         let mut c = Command::new(c);
-        c.current_dir(pwd);
-        c.args(tokens);
+        c.current_dir(&self.pwd);
+        c.args(&self.parser.shell_words[self.parser.word_idx..]);
         c.status()?;
 
         terminal::enable_raw_mode()?;

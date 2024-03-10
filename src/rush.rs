@@ -1,13 +1,12 @@
 use std::{env, path::PathBuf};
 
-use crate::cursor::Cursor;
+use crate::{cursor::Cursor, parser::ParserState};
 
 pub struct Rush {
     pub cursor: Cursor,
     pub pwd: PathBuf,
     pub home: PathBuf,
-    pub input: String,
-    pub exit: bool,
+    pub parser: ParserState,
 }
 
 impl Rush {
@@ -23,8 +22,7 @@ impl Rush {
             cursor: Default::default(),
             pwd,
             home,
-            input: String::new(),
-            exit: false,
+            parser: ParserState::default(),
         }
     }
 }

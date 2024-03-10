@@ -6,7 +6,9 @@ use crate::{error::Res, rush::Rush};
 
 #[derive(Default)]
 pub struct Cursor {
+    /// represents the first valid location after the prompt
     pub min_cursor: Option<u16>,
+
     pub cursor_location: Option<u16>,
     pub max_cursor: Option<u16>,
 }

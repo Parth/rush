@@ -23,7 +23,7 @@ impl Rush {
     }
 
     pub fn reset_prompt(&mut self) {
-        self.input.clear();
+        self.parser.input.clear();
         self.cursor.clear();
     }
 
@@ -55,7 +55,7 @@ impl Rush {
     }
 
     fn show_pwd(&self) -> Res<()> {
-        stdout().queue(SetForegroundColor(style::Color::Green))?;
+        stdout().queue(SetForegroundColor(style::Color::DarkBlue))?;
         let shortened = self.shortened_home();
         let pwd = shortened.as_ref().unwrap_or(&self.pwd).to_str().unwrap();
         write!(stdout(), "{}", pwd)?;
@@ -79,7 +79,7 @@ impl Rush {
             self.cursor.max_cursor = self.cursor.min_cursor;
         }
 
-        write!(stdout(), "{}", self.input)?;
+        write!(stdout(), "{}", self.parser.input)?;
 
         if self.cursor.cursor_location.is_none() {
             stdout().flush()?;
@@ -100,21 +100,22 @@ impl Rush {
         let current_index = self.cursor.cursor_location.unwrap() - self.cursor.min_cursor.unwrap();
         let current_index = current_index as usize;
 
-        self.input.insert(current_index, c);
+        self.parser.input.insert(current_index, c);
         self.cursor_move_right(true);
 
         Ok(())
     }
 
     pub fn backspace(&mut self) -> Res<()> {
-        if self.input.is_empty() {
+        if self.parser.input.is_empty() {
             return Ok(()); // todo: boop here
         }
 
         let current_index = self.cursor.cursor_location.unwrap() - self.cursor.min_cursor.unwrap();
         let current_index = current_index as usize;
 
-        self.input
+        self.parser
+            .input
             .replace_range(current_index - 1..current_index, "");
         self.cursor_move_left(true);
         Ok(())

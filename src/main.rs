@@ -3,6 +3,7 @@ use rush::Rush;
 mod cursor;
 mod error;
 mod event;
+mod history;
 mod keymap;
 mod parser;
 mod prompt;

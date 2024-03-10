@@ -50,6 +50,8 @@ impl Rush {
                     KeyCode::Right => {
                         self.cursor_move_right(false);
                     }
+                    KeyCode::Up => {}
+                    KeyCode::Down => {}
                     KeyCode::Char(c) => self.append_input(c)?,
                     KeyCode::Backspace => self.backspace()?,
                     KeyCode::Enter => self.parse(true)?,
