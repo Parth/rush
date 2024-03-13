@@ -9,7 +9,7 @@ use crossterm::terminal::{self};
 use crate::{error::Res, rush::Rush};
 
 #[derive(Default)]
-pub struct ParserState {
+pub struct Parser {
     pub execute: bool,
     pub input: String,
     // todo: these next two fields will likely become some sort of execution plan
@@ -40,7 +40,8 @@ impl Rush {
                 "" => {} // needed?
                 "cd" => self.cd()?,
                 "exit" => Self::exit(),
-                c => {
+                _ => {
+                    // these can be moved locally now
                     if self.parser.execute {
                         self.command()?;
                     }
@@ -49,6 +50,7 @@ impl Rush {
         }
 
         if self.parser.execute {
+            self.hist_add_input();
             self.reset_prompt();
         }
 

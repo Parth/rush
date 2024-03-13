@@ -1,12 +1,13 @@
 use std::{env, path::PathBuf};
 
-use crate::{cursor::Cursor, parser::ParserState};
+use crate::{cursor::Cursor, history::History, parser::Parser};
 
 pub struct Rush {
     pub cursor: Cursor,
     pub pwd: PathBuf,
     pub home: PathBuf,
-    pub parser: ParserState,
+    pub parser: Parser,
+    pub history: History,
 }
 
 impl Rush {
@@ -19,10 +20,11 @@ impl Rush {
         let pwd = env::current_dir().unwrap_or_else(|_| home.clone());
 
         Self {
-            cursor: Default::default(),
+            cursor: Cursor::default(),
             pwd,
             home,
-            parser: ParserState::default(),
+            history: History::default(),
+            parser: Parser::default(),
         }
     }
 }
