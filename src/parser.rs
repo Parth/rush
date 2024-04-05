@@ -1,12 +1,57 @@
 use std::{
-    ffi::OsStr,
-    path::{Path, PathBuf},
-    process::{self, Command},
+    ops::Range,
+    process::{self},
 };
 
 use crossterm::terminal::{self};
 
 use crate::{error::Res, rush::Rush};
+
+pub enum ExpressionType {
+    Builtin,
+    //Command,
+}
+
+pub enum TokenType {
+    And,
+    Or,
+    Expression(ExpressionType),
+}
+
+// the plan here is to parse all the information into this format, unfortunately the ranges here
+// are going to be word indexes into the shellsplit words instead of character indexes into the
+// underlying string, this is going to make syntax highlighting more annoying. The path forward
+// here will be to re-write that part of the parser and also return indexes, or incorporate more
+// sophisticated token ids into our parse tree.
+pub struct Token {
+    pub t_type: TokenType,
+    pub range: Range<usize>,
+}
+
+// this could be another approach: you have a command that consumes itself, all the args and any
+// operators between itself and the next command, based on it's status code and the next command
+// type, it can evaluate whether continuation should happen. Potentially this is also the best way
+// to describe pipes
+pub enum Criteria {
+    And,
+    Or,
+    Semilcolon,
+}
+
+pub struct Command {
+    pub location: Range<usize>,
+    pub status: u8, // todo consider enum
+    pub cont: Option<Criteria>,
+}
+
+// both these approaches extend to a world with our own parser, in their own ways. And both
+// approaches will require more help for syntax highlighting reliably. Although I wonder if these
+// counts can be derived with some assumptions. It's probably the various forms of whitespace that
+// pose the biggest problem. I'd also like shift enter to seamlessly enter multi line mode.
+// Possibly some other enter combination can just re-run the last command.
+//
+// These approaches are also fundementally structuring the parsed tokens linearly, instead of in a
+// tree, the only example of a situation I can think of where this matters is in Parentasis.
 
 #[derive(Default)]
 pub struct Parser {
