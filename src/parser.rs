@@ -1,4 +1,8 @@
-use std::{mem, ops::Range, process};
+use std::{
+    io::ErrorKind, mem, ops::Range, process::{self, Command}
+};
+
+use crossterm::terminal;
 
 use crate::{error::Res, rush::Rush};
 
@@ -33,6 +37,7 @@ pub struct Cmd {
     pub next: Option<Next>,
 
     pub stage: CmdStage,
+    pub background: bool,
 }
 
 pub struct Var {}
@@ -75,10 +80,16 @@ pub enum ParserState {
     Delimeter,
     Command,
     Args,
+
+    /// how many & characters have we seen (bg or &&)?
+    And {
+        count: usize,
+    },
 }
 
 pub enum ParseProblem {
     UnmatchedQuote(usize),
+    TrailingAnd,
 }
 
 impl Rush {
@@ -88,10 +99,19 @@ impl Rush {
             Self::next_line()?;
         }
 
-        let out = self.parse_loop();
-        // time to execute
+        let out = self.parse_fsm();
 
         if self.parser.execute {
+            for cmd in out.commands {
+                terminal::disable_raw_mode()?;
+                let onwards = self.command(cmd)?;
+                terminal::enable_raw_mode()?;
+
+                if !onwards {
+                    break;
+                }
+            }
+
             self.hist_add_input();
             self.reset_prompt();
         }
@@ -99,7 +119,7 @@ impl Rush {
         Ok(())
     }
 
-    fn parse_loop(&self) -> ParserOutput {
+    fn parse_fsm(&self) -> ParserOutput {
         let mut state = vec![];
         let mut commands = vec![];
         let mut command = Cmd::default();
@@ -108,13 +128,8 @@ impl Rush {
         for (idx, c) in chars {
             match state.as_slice() {
                 [] => match c {
-                    '\'' => {
-                        state.push(ParserState::SingleQuote(idx));
-                        command.consumed.push(ConsumedChars { c, idx })
-                    }
-                    '"' => {
-                        state.push(ParserState::DoubleQuote(idx));
-                        command.consumed.push(ConsumedChars { c, idx });
+                    ' ' => {
+                        continue;
                     }
                     _ => {
                         state.push(ParserState::Command);
@@ -123,22 +138,28 @@ impl Rush {
                 },
                 [ParserState::Command] => match c {
                     ' ' => {
-                        // maybe this should be a push
+                        // todo: what if no name yet
                         state.push(ParserState::Delimeter);
                     }
                     '=' => todo!("change from name to env vars here"),
                     _ => {
+                        // possibly this state should have it's own identifier, if we upgrade to an
+                        // env var or something of that nature, the Command, Delimiter branch will
+                        // assume data is going to args.
                         command.name.push(c);
                     }
                 },
                 [ParserState::Command, ParserState::Delimeter] => match c {
                     '"' => {
                         state[1] = ParserState::Args;
+                        state.push(ParserState::DoubleQuote(idx));
                         command.args.push(Arg {
-                            val: String::from(c),
+                            val: String::default(),
                             range: idx..idx + 1,
                         });
-                        state.push(ParserState::DoubleQuote(idx));
+                    }
+                    '&' => {
+                        state[1] = ParserState::And { count: 1 };
                     }
                     _ => {
                         state[1] = ParserState::Args;
@@ -153,11 +174,28 @@ impl Rush {
                         state[1] = ParserState::Delimeter;
                     }
                     _ => {
-                        command.args.last_mut().unwrap().val.push(c);
-                        command.args.last_mut().unwrap().range.end += 1;
+                        let arg = command.args.last_mut().unwrap();
+                        arg.val.push(c);
+                        arg.range.end += 1;
                     }
                 },
-
+                [ParserState::Command, ParserState::And { count: 1 }] => match c {
+                    '&' => {
+                        commands.push(mem::replace(&mut command, Cmd::default()));
+                        state.clear();
+                    }
+                    _ => panic!("unreasonable character found after & {c}"),
+                },
+                [ParserState::Command, ParserState::Args, ParserState::DoubleQuote(_)] => match c {
+                    '"' => {
+                        state.pop();
+                    }
+                    _ => {
+                        let arg = command.args.last_mut().unwrap();
+                        arg.val.push(c);
+                        arg.range.end += 1;
+                    }
+                },
                 _ => panic!("unhandled parser state\n{:#?}", state),
             }
         }
@@ -176,15 +214,79 @@ impl Rush {
                     }
                     command_count += 1;
                 }
+                ParserState::Args => {}
                 ParserState::Delimeter => {}
-                ParserState::Args => todo!(),
+                ParserState::And { count: 1 } => {
+                    commands.last_mut().unwrap().background = true;
+                }
+                ParserState::And { count: _ } => {
+                    problems.push(ParseProblem::TrailingAnd);
+                }
             }
         }
 
         ParserOutput { commands, problems }
     }
 
+    fn command(&mut self, cmd: Cmd) -> Res<bool> {
+        let status = match cmd.name.as_str() {
+            "cd" => self.cd(cmd)?,
+            _ => {
+                let mut c = Command::new(&cmd.name);
+                c.current_dir(&self.pwd);
+                c.args(cmd.args.iter().map(|arg| &arg.val));
+                match c.status() {
+                    Ok(status) => status.code().unwrap_or(-1),
+                    Err(failed) => match failed.kind() {
+                        // todo: would be nice for these to have colors
+                        ErrorKind::NotFound => {
+                            eprintln!("rush could not find the command: {:?}", &cmd.name);
+                            127
+                        },
+                        _ => {
+                            eprintln!("rush failed to run command: {}", failed.to_string());
+                            -2
+                        },
+                    },
+                }
+            }
+        };
+
+        // todo: status will need to be stored somewhere ultimately
+        Ok(status == 0)
+    }
+
+    fn cd(&mut self, cmd: Cmd) -> Res<i32> {
+        let status = match cmd.args.as_slice() {
+            [] => {
+                self.pwd = self.home.clone();
+                0
+            }
+            [dest] => {
+                self.pwd.push(dest.val.clone());
+                self.pwd = self.pwd.canonicalize()?;
+                0
+            }
+            other => {
+                println!(
+                    "cd expected 1 argument but found more than one: {:?}",
+                    other
+                        .into_iter()
+                        .map(|arg| &arg.val)
+                        .collect::<Vec<&String>>()
+                );
+                1
+            }
+        };
+
+        Ok(status)
+    }
+
     pub fn exit() -> ! {
         process::exit(0);
     }
 }
+
+// error situations:
+// - invalid input during non execution parsing -- should be ignored, don't stop parsing
+// - invalid input during execution -- should stop parsing and
