@@ -7,5 +7,5 @@ description = "the rust shell"
 repository = "https://github.com/parth/rush"
 
 [dependencies]
+anyhow = "1.0.81"
 crossterm = "0.27.0"
-shell-words = "1.1.0"
