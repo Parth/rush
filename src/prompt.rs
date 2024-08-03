@@ -96,14 +96,22 @@ impl Rush {
         Ok(())
     }
 
-    pub fn append_input(&mut self, c: char) -> Res<()> {
+    pub fn append_char(&mut self, c: char) {
         let current_index = self.cursor.cursor_location.unwrap() - self.cursor.min_cursor.unwrap();
         let current_index = current_index as usize;
 
         self.parser.input.insert(current_index, c);
         self.cursor_move_right(true);
+    }
 
-        Ok(())
+    pub fn append_input(&mut self, s: &str) {
+        let current_index = self.cursor.cursor_location.unwrap() - self.cursor.min_cursor.unwrap();
+        let current_index = current_index as usize;
+
+        self.parser.input.insert_str(current_index, &s);
+        for _ in 0..s.len() {
+            self.cursor_move_right(true);
+        }
     }
 
     pub fn backspace(&mut self) -> Res<()> {

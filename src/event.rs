@@ -38,6 +38,9 @@ impl Rush {
         self.show()?;
         loop {
             match event::read()? {
+                event::Event::Paste(s) => {
+                    self.append_input(&s);
+                }
                 event::Event::Key(KeyEvent {
                     code,
                     modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
@@ -52,7 +55,7 @@ impl Rush {
                     }
                     KeyCode::Up => self.hist_prev(),
                     KeyCode::Down => self.hist_next(),
-                    KeyCode::Char(c) => self.append_input(c)?,
+                    KeyCode::Char(c) => self.append_char(c),
                     KeyCode::Backspace => self.backspace()?,
                     KeyCode::Enter => self.parse(true)?,
                     _ => continue,
