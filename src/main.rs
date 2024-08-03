@@ -13,8 +13,6 @@ fn main() {
     Rush::new().start_event_loop().unwrap();
 }
 
-// todo: execute commands
-// todo: cd
 // todo: env vars
 // todo: history
 // todo: pipes
