@@ -1,5 +1,8 @@
 use std::{
-    io::ErrorKind, mem, ops::Range, process::{self, Command}
+    io::ErrorKind,
+    mem,
+    ops::Range,
+    process::{self, Command},
 };
 
 use crossterm::terminal;
@@ -16,12 +19,15 @@ pub struct Parser {
 /// A struct optimized for command execution planning and syntax highlighting
 #[derive(Default)]
 pub struct ParserOutput {
+    /// the input this parsing output is associated with, allows fast determination if
+    /// re-parsing is needed
+    input: String,
     commands: Vec<Cmd>,
     problems: Vec<ParseProblem>,
 }
 
 /// Represents everything the parser understood
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Cmd {
     pub total_range: Range<usize>,
 
@@ -40,14 +46,16 @@ pub struct Cmd {
     pub background: bool,
 }
 
+#[derive(Clone)]
 pub struct Var {}
 
+#[derive(Clone)]
 pub struct Arg {
     pub val: String,
     pub range: Range<usize>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub enum CmdStage {
     #[default]
     NotRun,
@@ -55,17 +63,20 @@ pub enum CmdStage {
     Finished(u8),
 }
 
+#[derive(Clone)]
 pub struct Next {
     next_type: NextType,
     range: Range<usize>,
 }
 
+#[derive(Clone)]
 pub enum NextType {
     And,
     Or,
     Semi,
 }
 
+#[derive(Clone)]
 pub struct ConsumedChars {
     c: char,
     idx: usize,
@@ -99,12 +110,14 @@ impl Rush {
             Self::next_line()?;
         }
 
-        let out = self.parse_fsm();
+        if self.parser.input != self.parser.output.input {
+            self.parser.output = self.parse_fsm();
+        }
 
         if self.parser.execute {
-            for cmd in out.commands {
+            for cmd in self.parser.output.commands.clone() {
                 terminal::disable_raw_mode()?;
-                let onwards = self.command(cmd)?;
+                let onwards = self.execute_commands(cmd)?;
                 terminal::enable_raw_mode()?;
 
                 if !onwards {
@@ -120,12 +133,13 @@ impl Rush {
     }
 
     fn parse_fsm(&self) -> ParserOutput {
+        let input = self.parser.input.clone();
         let mut state = vec![];
-        let mut commands = vec![];
-        let mut command = Cmd::default();
+        let mut commands = vec![Cmd::default()];
 
-        let chars = self.parser.input.chars().enumerate();
+        let chars = input.chars().enumerate();
         for (idx, c) in chars {
+            let last = commands.len() - 1;
             match state.as_slice() {
                 [] => match c {
                     ' ' => {
@@ -133,7 +147,7 @@ impl Rush {
                     }
                     _ => {
                         state.push(ParserState::Command);
-                        command.name.push(c)
+                        commands[last].name.push(c)
                     }
                 },
                 [ParserState::Command] => match c {
@@ -146,14 +160,14 @@ impl Rush {
                         // possibly this state should have it's own identifier, if we upgrade to an
                         // env var or something of that nature, the Command, Delimiter branch will
                         // assume data is going to args.
-                        command.name.push(c);
+                        commands[last].name.push(c);
                     }
                 },
                 [ParserState::Command, ParserState::Delimeter] => match c {
                     '"' => {
                         state[1] = ParserState::Args;
                         state.push(ParserState::DoubleQuote(idx));
-                        command.args.push(Arg {
+                        commands[last].args.push(Arg {
                             val: String::default(),
                             range: idx..idx + 1,
                         });
@@ -163,7 +177,7 @@ impl Rush {
                     }
                     _ => {
                         state[1] = ParserState::Args;
-                        command.args.push(Arg {
+                        commands[last].args.push(Arg {
                             val: String::from(c),
                             range: idx..idx + 1,
                         })
@@ -174,14 +188,14 @@ impl Rush {
                         state[1] = ParserState::Delimeter;
                     }
                     _ => {
-                        let arg = command.args.last_mut().unwrap();
+                        let arg = commands[last].args.last_mut().unwrap();
                         arg.val.push(c);
                         arg.range.end += 1;
                     }
                 },
                 [ParserState::Command, ParserState::And { count: 1 }] => match c {
                     '&' => {
-                        commands.push(mem::replace(&mut command, Cmd::default()));
+                        commands.push(Cmd::default());
                         state.clear();
                     }
                     _ => panic!("unreasonable character found after & {c}"),
@@ -191,7 +205,7 @@ impl Rush {
                         state.pop();
                     }
                     _ => {
-                        let arg = command.args.last_mut().unwrap();
+                        let arg = commands[last].args.last_mut().unwrap();
                         arg.val.push(c);
                         arg.range.end += 1;
                     }
@@ -201,19 +215,11 @@ impl Rush {
         }
 
         let mut problems = vec![];
-        let mut command_count = 0;
         for s in state {
             match s {
                 ParserState::SingleQuote(loc) => problems.push(ParseProblem::UnmatchedQuote(loc)),
                 ParserState::DoubleQuote(loc) => problems.push(ParseProblem::UnmatchedQuote(loc)),
-                ParserState::Command => {
-                    if command_count == 0 {
-                        commands.push(mem::replace(&mut command, Cmd::default()));
-                    } else {
-                        panic!("multiple outstanding commands found");
-                    }
-                    command_count += 1;
-                }
+                ParserState::Command => {}
                 ParserState::Args => {}
                 ParserState::Delimeter => {}
                 ParserState::And { count: 1 } => {
@@ -225,32 +231,44 @@ impl Rush {
             }
         }
 
-        ParserOutput { commands, problems }
+        ParserOutput {
+            input,
+            commands,
+            problems,
+        }
     }
 
-    fn command(&mut self, cmd: Cmd) -> Res<bool> {
-        let status = match cmd.name.as_str() {
-            "cd" => self.cd(cmd)?,
-            _ => {
-                let mut c = Command::new(&cmd.name);
-                c.current_dir(&self.pwd);
-                c.args(cmd.args.iter().map(|arg| &arg.val));
-                match c.status() {
-                    Ok(status) => status.code().unwrap_or(-1),
-                    Err(failed) => match failed.kind() {
-                        // todo: would be nice for these to have colors
-                        ErrorKind::NotFound => {
-                            eprintln!("rush could not find the command: {:?}", &cmd.name);
-                            127
+    fn execute_commands(&mut self) -> Res<bool> {
+        for cmd_name in self
+            .parser
+            .output
+            .commands
+            .iter()
+            .map(|cmd| cmd.name.to_string())
+        {
+            let status = match cmd_name {
+                "cd" => self.cd(cmd)?,
+                _ => {
+                    let mut c = Command::new(&cmd.name);
+                    c.current_dir(&self.pwd);
+                    c.args(cmd.args.iter().map(|arg| &arg.val));
+                    match c.status() {
+                        Ok(status) => status.code().unwrap_or(-1),
+                        Err(failed) => match failed.kind() {
+                            // todo: would be nice for these to have colors
+                            ErrorKind::NotFound => {
+                                eprintln!("rush could not find the command: {:?}", &cmd.name);
+                                127
+                            }
+                            _ => {
+                                eprintln!("rush failed to run command: {}", failed.to_string());
+                                -2
+                            }
                         },
-                        _ => {
-                            eprintln!("rush failed to run command: {}", failed.to_string());
-                            -2
-                        },
-                    },
+                    }
                 }
-            }
-        };
+            };
+        }
 
         // todo: status will need to be stored somewhere ultimately
         Ok(status == 0)
@@ -288,5 +306,6 @@ impl Rush {
 }
 
 // error situations:
+//
 // - invalid input during non execution parsing -- should be ignored, don't stop parsing
 // - invalid input during execution -- should stop parsing and
