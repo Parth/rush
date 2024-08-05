@@ -8,6 +8,7 @@ mod keymap;
 mod parser;
 mod prompt;
 mod rush;
+mod sugguest;
 
 fn main() {
     Rush::new().start_event_loop().unwrap();

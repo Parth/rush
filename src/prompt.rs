@@ -88,7 +88,7 @@ impl Rush {
         Ok(())
     }
 
-    pub fn show(&mut self) -> Res<()> {
+    pub fn show_prompt(&mut self) -> Res<()> {
         stdout().queue(Clear(terminal::ClearType::CurrentLine))?;
         stdout().queue(MoveToColumn(0))?;
         self.show_pwd()?;
@@ -108,7 +108,7 @@ impl Rush {
         let current_index = self.cursor.cursor_location.unwrap() - self.cursor.min_cursor.unwrap();
         let current_index = current_index as usize;
 
-        self.parser.input.insert_str(current_index, &s);
+        self.parser.input.insert_str(current_index, s);
         for _ in 0..s.len() {
             self.cursor_move_right(true);
         }
