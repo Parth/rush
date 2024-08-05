@@ -35,7 +35,7 @@ impl Rush {
     }
 
     fn event_loop(&mut self) -> Res<()> {
-        self.show()?;
+        self.show_prompt()?;
         loop {
             match event::read()? {
                 event::Event::Paste(s) => {
@@ -69,8 +69,9 @@ impl Rush {
                 _ => continue,
             }
 
-            self.show()?;
+            self.show_prompt()?;
             self.cursor_show()?;
+            self.show_suggestions()?;
             stdout().flush()?;
         }
     }

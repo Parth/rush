@@ -2,8 +2,8 @@ use crate::rush::Rush;
 
 #[derive(Default)]
 pub struct History {
-    entries: Vec<String>,
-    idx: Option<usize>,
+    pub entries: Vec<String>,
+    pub idx: Option<usize>,
 }
 
 impl Rush {
@@ -20,9 +20,7 @@ impl Rush {
         match self.history.idx {
             Some(mut idx) => {
                 self.history.idx = {
-                    if idx != 0 {
-                        idx -= 1;
-                    }
+                    idx = idx.saturating_sub(1);
                     Some(idx)
                 }
             }

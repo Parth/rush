@@ -1,6 +1,5 @@
 use std::{
     io::ErrorKind,
-    mem,
     ops::Range,
     process::{self, Command},
 };
@@ -117,7 +116,7 @@ impl Rush {
         if self.parser.execute {
             for cmd in self.parser.output.commands.clone() {
                 terminal::disable_raw_mode()?;
-                let onwards = self.execute_commands(cmd)?;
+                let onwards = self.command(cmd)?;
                 terminal::enable_raw_mode()?;
 
                 if !onwards {
@@ -238,37 +237,29 @@ impl Rush {
         }
     }
 
-    fn execute_commands(&mut self) -> Res<bool> {
-        for cmd_name in self
-            .parser
-            .output
-            .commands
-            .iter()
-            .map(|cmd| cmd.name.to_string())
-        {
-            let status = match cmd_name {
-                "cd" => self.cd(cmd)?,
-                _ => {
-                    let mut c = Command::new(&cmd.name);
-                    c.current_dir(&self.pwd);
-                    c.args(cmd.args.iter().map(|arg| &arg.val));
-                    match c.status() {
-                        Ok(status) => status.code().unwrap_or(-1),
-                        Err(failed) => match failed.kind() {
-                            // todo: would be nice for these to have colors
-                            ErrorKind::NotFound => {
-                                eprintln!("rush could not find the command: {:?}", &cmd.name);
-                                127
-                            }
-                            _ => {
-                                eprintln!("rush failed to run command: {}", failed.to_string());
-                                -2
-                            }
-                        },
-                    }
+    fn command(&mut self, cmd: Cmd) -> Res<bool> {
+        let status = match cmd.name.as_str() {
+            "cd" => self.cd(cmd)?,
+            _ => {
+                let mut c = Command::new(&cmd.name);
+                c.current_dir(&self.pwd);
+                c.args(cmd.args.iter().map(|arg| &arg.val));
+                match c.status() {
+                    Ok(status) => status.code().unwrap_or(-1),
+                    Err(failed) => match failed.kind() {
+                        // todo: would be nice for these to have colors
+                        ErrorKind::NotFound => {
+                            eprintln!("rush could not find the command: {:?}", &cmd.name);
+                            127
+                        }
+                        _ => {
+                            eprintln!("rush failed to run command: {}", failed);
+                            -2
+                        }
+                    },
                 }
-            };
-        }
+            }
+        };
 
         // todo: status will need to be stored somewhere ultimately
         Ok(status == 0)
@@ -289,7 +280,7 @@ impl Rush {
                 println!(
                     "cd expected 1 argument but found more than one: {:?}",
                     other
-                        .into_iter()
+                        .iter()
                         .map(|arg| &arg.val)
                         .collect::<Vec<&String>>()
                 );

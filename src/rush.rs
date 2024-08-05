@@ -1,6 +1,6 @@
 use std::{env, path::PathBuf};
 
-use crate::{cursor::Cursor, history::History, parser::Parser};
+use crate::{cursor::Cursor, history::History, parser::Parser, sugguest::Suggest};
 
 pub struct Rush {
     pub cursor: Cursor,
@@ -8,6 +8,7 @@ pub struct Rush {
     pub home: PathBuf,
     pub parser: Parser,
     pub history: History,
+    pub suggest: Suggest,
 }
 
 impl Rush {
@@ -25,6 +26,7 @@ impl Rush {
             home,
             history: History::default(),
             parser: Parser::default(),
+            suggest: Suggest::default(),
         }
     }
 }
