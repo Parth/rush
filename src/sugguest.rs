@@ -10,15 +10,20 @@ use crate::{error::Res, rush::Rush};
 
 #[derive(Default)]
 pub struct Suggest {
-    suggestions: Vec<String>,
+    pub suggestions: Vec<String>,
 }
 
 impl Rush {
     fn generate(&mut self) {
         self.suggest.suggestions.clear();
-        let history = self.history.entries.iter().rev().take(10);
+        let entries = vec![];
+        let entries = self.history.entries.get(&self.pwd).unwrap_or(&entries);
+        let history = entries.iter().rev().take(10);
         for hist in history {
-            self.suggest.suggestions.push(hist.clone());
+            // one day, when we have more samples, this will be replaced with the fuzzy algorithm
+            if hist.cmd.starts_with(&self.parser.input) {
+                self.suggest.suggestions.push(hist.cmd.clone());
+            }
         }
     }
 
@@ -37,6 +42,7 @@ impl Rush {
 
         let initial_pos = position()?;
         stdout().queue(MoveTo(0, initial_pos.1 + 1))?;
+        stdout().queue(Clear(ClearType::FromCursorDown))?;
 
         for sug in &self.suggest.suggestions {
             stdout().queue(Clear(ClearType::CurrentLine))?;

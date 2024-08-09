@@ -14,4 +14,8 @@ impl Rush {
 
         Ok(())
     }
+
+    pub fn fn_key(&mut self, n: u8) -> Res<()> {
+        self.do_hist(n)
+    }
 }

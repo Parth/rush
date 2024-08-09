@@ -106,6 +106,7 @@ impl Rush {
     pub fn parse(&mut self, execute: bool) -> Res<()> {
         self.parser.execute = execute;
         if self.parser.execute {
+            self.hist_add_input();
             Self::next_line()?;
         }
 
@@ -124,7 +125,6 @@ impl Rush {
                 }
             }
 
-            self.hist_add_input();
             self.reset_prompt();
         }
 
@@ -279,10 +279,7 @@ impl Rush {
             other => {
                 println!(
                     "cd expected 1 argument but found more than one: {:?}",
-                    other
-                        .iter()
-                        .map(|arg| &arg.val)
-                        .collect::<Vec<&String>>()
+                    other.iter().map(|arg| &arg.val).collect::<Vec<&String>>()
                 );
                 1
             }
