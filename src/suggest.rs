@@ -6,7 +6,10 @@ use crossterm::{
     QueueableCommand,
 };
 
-use crate::{error::Res, rush::Rush};
+use crate::{
+    error::Res,
+    rush::{KeyMode, Rush},
+};
 
 #[derive(Default)]
 pub struct Suggest {
@@ -53,6 +56,23 @@ impl Rush {
         stdout().queue(MoveTo(initial_pos.0, initial_pos.1))?;
         stdout().flush()?;
 
+        Ok(())
+    }
+
+    pub fn suggest_mode(&mut self, c: char) -> Res<()> {
+        match c {
+            '0' => self.accept_suggestion(10),
+            '1'..='9' => self.accept_suggestion(c.to_digit(10).unwrap() as u8),
+            _ => Ok(()),
+        }
+    }
+
+    pub fn accept_suggestion(&mut self, n: u8) -> Res<()> {
+        self.parser.input = self.suggest.suggestions[(n - 1) as usize].clone();
+        self.show_prompt()?;
+        self.parse(true)?;
+        self.cursor.clear();
+        self.mode = KeyMode::Insert;
         Ok(())
     }
 }

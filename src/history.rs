@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use tokio::fs::{self, File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{self, UnboundedReceiver};
+use tokio::task;
+use tokio::time::sleep;
 
 #[derive(Default)]
 pub struct History {
@@ -30,27 +32,32 @@ pub enum HistoryDataActions {
 impl Rush {
     pub async fn start_disk_worker(&mut self) -> UnboundedReceiver<HistoryDataActions> {
         let (tx, rx) = mpsc::unbounded_channel();
+        let data_refresh_rest = self.cfg.data_refresh_rest;
+        let hist = self.cfg.hist_dir();
         tokio::spawn(async move {
+            let mut dirty_tracker: HashMap<PathBuf, SystemTime> = HashMap::new();
             loop {
-                Self::refesh_history(tx.clone()).await;
+                Self::refesh_history(tx.clone(), &mut dirty_tracker, &hist).await;
+                sleep(data_refresh_rest).await;
             }
         });
 
         rx
     }
 
-    pub async fn refesh_history(tx: mpsc::UnboundedSender<HistoryDataActions>) {
-        fs::create_dir_all("/Users/parth/.rush/history/")
-            .await
-            .unwrap();
-        let mut entries = fs::read_dir("/Users/parth/.rush/history").await.unwrap();
-        let mut path_updates: HashMap<PathBuf, SystemTime> = HashMap::new();
+    pub async fn refesh_history(
+        tx: mpsc::UnboundedSender<HistoryDataActions>,
+        dirty_tracker: &mut HashMap<PathBuf, SystemTime>,
+        hist: &PathBuf,
+    ) {
+        fs::create_dir_all(hist).await.unwrap();
+        let mut entries = fs::read_dir(hist).await.unwrap();
 
         while let Some(child) = entries.next_entry().await.unwrap() {
             let meta = child.metadata().await.unwrap();
 
             let last_updated = meta.modified().unwrap();
-            if let Some(entries) = path_updates.get_mut(&child.path()) {
+            if let Some(entries) = dirty_tracker.get_mut(&child.path()) {
                 if *entries < last_updated {
                     tokio::spawn(Self::read_history_file(child.path(), tx.clone()));
                 }
@@ -58,7 +65,7 @@ impl Rush {
                 tokio::spawn(Self::read_history_file(child.path(), tx.clone()));
             }
 
-            path_updates.insert(child.path(), last_updated);
+            dirty_tracker.insert(child.path(), last_updated);
         }
     }
 
@@ -87,7 +94,7 @@ impl Rush {
 
         let mut entry = self.history.entries.remove(&pwd).unwrap_or_default();
         let key = URL_SAFE.encode(pwd.to_str().unwrap().as_bytes());
-        let mut path = PathBuf::from("/Users/parth/.rush/history");
+        let mut path = self.cfg.hist_dir();
         let mut added = false;
         for e in entry.iter_mut() {
             if e.cmd == cmd {
@@ -174,12 +181,5 @@ impl Rush {
         }
 
         self.cursor.clear();
-    }
-
-    pub fn do_hist(&mut self, n: u8) -> Res<()> {
-        self.parser.input = self.suggest.suggestions[n as usize].clone();
-        self.parse(true)?;
-        self.cursor.clear();
-        Ok(())
     }
 }
